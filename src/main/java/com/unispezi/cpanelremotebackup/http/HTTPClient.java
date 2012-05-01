@@ -1,31 +1,25 @@
-package com.unispezi.cpanelremotebackup.connector;
+package com.unispezi.cpanelremotebackup.http;
 
-import com.unispezi.cpanelremotebackup.Log;
+import com.unispezi.cpanelremotebackup.tools.Log;
 import org.apache.http.*;
 import org.apache.http.auth.AuthScope;
 import org.apache.http.auth.UsernamePasswordCredentials;
-import org.apache.http.client.HttpClient;
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.client.protocol.ClientContext;
-import org.apache.http.conn.params.ConnRoutePNames;
 import org.apache.http.impl.auth.BasicScheme;
 import org.apache.http.impl.client.BasicAuthCache;
 import org.apache.http.impl.client.DefaultHttpClient;
-import org.apache.http.message.BasicHeader;
 import org.apache.http.params.BasicHttpParams;
 import org.apache.http.params.HttpParams;
 import org.apache.http.protocol.BasicHttpContext;
-import sun.net.www.protocol.http.AuthCache;
 
 import java.io.IOException;
 import java.util.Map;
 
 /**
- * Created with IntelliJ IDEA.
- * User: Carsten
- * Date: 01.05.12
- * Time: 12:09
- * To change this template use File | Settings | File Templates.
+ * This class is an HTTP client. It currently just hides an Apache Commons
+ * HTTP client V4, but since all HTTP client logic is hidden behind this
+ * class this could later be changed.
  */
 public class HTTPClient {
     private DefaultHttpClient httpClient;

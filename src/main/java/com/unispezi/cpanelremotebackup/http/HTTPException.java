@@ -1,11 +1,8 @@
-package com.unispezi.cpanelremotebackup.connector;
+package com.unispezi.cpanelremotebackup.http;
 
 /**
- * Created with IntelliJ IDEA.
- * User: Carsten
- * Date: 01.05.12
- * Time: 12:30
- * To change this template use File | Settings | File Templates.
+ * HTTP client exception. Hides the Apache Commons HTTP client V4 exception
+ * classes in case the client should ever be changed.
  */
 public class HTTPException extends RuntimeException {
     public HTTPException() {

@@ -1,23 +1,19 @@
 package com.unispezi.cpanelremotebackup.ftp;
 
-import com.unispezi.cpanelremotebackup.Log;
+import com.unispezi.cpanelremotebackup.tools.Log;
 import org.apache.commons.net.ftp.FTP;
 import org.apache.commons.net.ftp.FTPFile;
 import org.apache.commons.net.ftp.FTPReply;
 
-import java.io.BufferedOutputStream;
-import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.util.Arrays;
 import java.util.List;
 
 /**
- * Created with IntelliJ IDEA.
- * User: Carsten
- * Date: 01.05.12
- * Time: 11:21
- * To change this template use File | Settings | File Templates.
+ * This class is an FTP client. It currently just hides an Apache HTTPComponents
+ * FTP client, but since all FTP client logic is hidden behind this
+ * class, this could later be changed.
  */
 public class FTPClient {
 
