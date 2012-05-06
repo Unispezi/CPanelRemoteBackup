@@ -1,13 +1,17 @@
 package com.unispezi.cpanelremotebackup;
 
-import com.unispezi.cpanelremotebackup.http.HTTPClient;
+import com.unispezi.cpanelremotebackup.archive.Archiver;
 import com.unispezi.cpanelremotebackup.ftp.FTPClient;
+import com.unispezi.cpanelremotebackup.http.HTTPClient;
 import com.unispezi.cpanelremotebackup.tools.Log;
 import org.apache.commons.io.IOUtils;
 import org.apache.commons.net.ftp.FTPFile;
 
 import java.io.*;
-import java.util.*;
+import java.util.Date;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 import java.util.regex.Pattern;
 
 /**
@@ -16,7 +20,7 @@ import java.util.regex.Pattern;
 public class CPanelRemoteBackup {
     private static final Pattern BACKUP_FILENAME_PATTERN = Pattern.compile("backup-.*\\.tar\\.gz");
     private static volatile long bytesDownloaded;
-    private static Object asyncThreadMonitor = new Object();
+    private static final Object asyncThreadMonitor = new Object();
 
     private String user;
     private String password;
@@ -27,9 +31,9 @@ public class CPanelRemoteBackup {
     long timeoutSeconds = 300;
     long pollIntervalSeconds = 15;
     long minFileBytes = 5000;
-    int port;
     String skin = "x3";
     private String outputDirectory;
+    private static final int VERIFY_BUFFER_SIZE_BYTES = 100000;
 
     public CPanelRemoteBackup(String user, String password, String hostName, boolean isSecure, String outputDirectory) {
         this.user = user;
@@ -86,7 +90,16 @@ public class CPanelRemoteBackup {
             System.exit(1);
         }
 
-        downloadBackupToFile(backupName, outputDirectory);
+        File downloaded = downloadBackupToFile(backupName, outputDirectory);
+        com.unispezi.cpanelremotebackup.tools.Console.print("Verifying downloaded file ...");
+        Archiver archiver = new Archiver(VERIFY_BUFFER_SIZE_BYTES);
+        if (archiver.verifyDownloadedBackup(downloaded)) {
+            com.unispezi.cpanelremotebackup.tools.Console.println("OK");
+        } else {
+            com.unispezi.cpanelremotebackup.tools.Console.println("ERROR");
+            com.unispezi.cpanelremotebackup.tools.Console.println("ERROR: Could not verify downloaded file");
+            System.exit(1);
+        }
 
         com.unispezi.cpanelremotebackup.tools.Console.println("Deleting " + backupName + " on server");
         ftp.deleteFile(backupName);
@@ -96,37 +109,42 @@ public class CPanelRemoteBackup {
 
     }
 
-    private void downloadBackupToFile(String backupName, String outputDirectory) {
+    private File downloadBackupToFile(String backupName, String outputDirectory) {
         final PipedInputStream ftpDataInStream = new PipedInputStream();
+        File outFile = null;
         try {
             PipedOutputStream ftpDataOutStream = new PipedOutputStream(ftpDataInStream);
 
-            File outFile = new File(outputDirectory, backupName);
-            outFile.createNewFile();
-            final FileOutputStream fileOutputStream = new FileOutputStream(outFile);
-            new Thread(
-                    new Runnable() {
-                        public void run() {
-                            try {
-                                synchronized (asyncThreadMonitor) {
-                                    bytesDownloaded = IOUtils.copy(ftpDataInStream, fileOutputStream);
-                                    if (bytesDownloaded > 0) bytesDownloaded += 0;
+            outFile = new File(outputDirectory, backupName);
+            if (outFile.createNewFile()){
+                final FileOutputStream fileOutputStream = new FileOutputStream(outFile);
+                new Thread(
+                        new Runnable() {
+                            public void run() {
+                                try {
+                                    synchronized (asyncThreadMonitor) {
+                                        bytesDownloaded = IOUtils.copy(ftpDataInStream, fileOutputStream);
+                                        if (bytesDownloaded > 0) bytesDownloaded += 0;
+                                    }
+                                } catch (IOException e) {
+                                    throw new RuntimeException("Exception in copy thread", e);
                                 }
-                            } catch (IOException e) {
-                                throw new RuntimeException("Exception in copy thread", e);
                             }
                         }
-                    }
-            ).start();
+                ).start();
+            } else {
+                com.unispezi.cpanelremotebackup.tools.Console.println("ERROR: Cannot create \"" + outFile + "\", file already exists.");
+            }
 
             com.unispezi.cpanelremotebackup.tools.Console.println("Downloading " + backupName + " to " + outFile.getPath());
             ftp.downloadFile(backupName, ftpDataOutStream);
             synchronized (asyncThreadMonitor) {
                 com.unispezi.cpanelremotebackup.tools.Console.println("Downloaded " + bytesDownloaded + " bytes successfully");
             }
-        } catch (IOException e){
+        } catch (IOException e) {
             com.unispezi.cpanelremotebackup.tools.Console.println("ERROR: Cannot download backup: " + e);
         }
+        return outFile;
     }
 
 
@@ -154,7 +172,6 @@ public class CPanelRemoteBackup {
 
     private String findBackupWeStarted(String prevBackupName, Date timeoutDate) {
         String backupWeStartedName = null;
-        Date start = new Date();
         com.unispezi.cpanelremotebackup.tools.Console.print("Polling for backup we just started");
         while ((backupWeStartedName == null) && (new Date().before(timeoutDate))) {
             com.unispezi.cpanelremotebackup.tools.Console.print(".");
@@ -215,6 +232,8 @@ public class CPanelRemoteBackup {
             return null;
         }
     }
+
+
 
 
     public void initFtp() {

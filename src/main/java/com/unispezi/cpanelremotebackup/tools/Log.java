@@ -24,5 +24,11 @@ public class Log {
             System.out.println("ERROR: " + logMe);
         }
     }
+    public static void error(String logMe, Throwable exception){
+        error(logMe);
+        if (logToConsole){
+            exception.printStackTrace(System.out);
+        }
+    }
 }
 
