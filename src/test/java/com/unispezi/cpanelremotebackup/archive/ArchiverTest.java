@@ -13,6 +13,7 @@ public class ArchiverTest {
     Archiver archiver;
     File correctTarGz = new File(ArchiverTest.class.getResource("/com/unispezi/cpanelremotebackup/archive/test.tar.gz").getFile());
     File corruptTarGz = new File(ArchiverTest.class.getResource("/com/unispezi/cpanelremotebackup/archive/corrupted.tar.gz").getFile());
+    File oneBitCorruptedOnlyTarGz = new File(ArchiverTest.class.getResource("/com/unispezi/cpanelremotebackup/archive/oneBitCorruptedOnly.tar.gz").getFile());
     File truncatedTarGz = new File(ArchiverTest.class.getResource("/com/unispezi/cpanelremotebackup/archive/truncated.tar.gz").getFile());
 
     @Before
@@ -33,6 +34,11 @@ public class ArchiverTest {
     @Test
     public void onCorruptedTgzReturnsFalse(){
         Assert.assertFalse(archiver.verifyDownloadedBackup(corruptTarGz));
+    }
+
+    @Test
+    public void onCorruptedOneBitOnlyTgzReturnsFalse(){
+        Assert.assertFalse(archiver.verifyDownloadedBackup(oneBitCorruptedOnlyTarGz));
     }
 
 }
