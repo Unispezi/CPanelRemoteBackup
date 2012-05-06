@@ -50,7 +50,7 @@ public class FTPClient {
                     throw e;
                 }
             } catch (IOException e) {
-                handleException(e, logString);
+                throw handleException(e, logString);
             }
 
         } else {
@@ -62,7 +62,7 @@ public class FTPClient {
         if (! isLoggedIn){
             if (!ftp.isConnected()) {
                 connect();
-            };
+            }
 
             String logString = "Logging in to  " + getHostLogString();
             try {
@@ -77,7 +77,7 @@ public class FTPClient {
                 // Check for errors
                 // reply code check only necessary after connect
             } catch (IOException e) {
-                handleException(e, logString);
+                throw handleException(e, logString);
             }
         } else {
             Log.info("Ignoring logon call, already logged on to " + getHostLogString());
@@ -103,7 +103,7 @@ public class FTPClient {
                     // Check for errors
                     checkResult(ftp.getReplyCode(), logString);
                 } catch (IOException e) {
-                    handleException(e, logString);
+                    throw handleException(e, logString);
                 }
             } else {
                 Log.debug("Ignoring logout(), not connected to " + getHostLogString() + "");
@@ -189,7 +189,22 @@ public class FTPClient {
         }
     }
 
+    /**
+     * Deletes file from server, will relogin if connection was lost.
+     *
+     * @param filePath file to delete
+     */
     public void deleteFile(String filePath) {
+        deleteFile(filePath, false);
+    }
+
+    /**
+     * Deletes file from server, will relogin if connection was lost.
+     *
+     * @param filePath file to delete
+     * @param isRetry true if this is a retry
+     */
+    private void deleteFile(String filePath, boolean isRetry) {
 
         String logString = "Deleting \"" + filePath+ "\"";
 
@@ -202,8 +217,13 @@ public class FTPClient {
             boolean deleted = ftp.deleteFile(filePath);
             Log.debug("Reply string was:" + ftp.getReplyString());
 
-            // Check for errors
-            checkResult(ftp.getReplyCode(), logString, deleted);
+            //Retry if connection was closed
+            if (!isRetry && (ftp.getReplyCode() == 421)) { //"Connection already closed"
+                deleteFile(filePath, true);
+            } else {
+                // Check for errors
+                checkResult(ftp.getReplyCode(), logString, deleted);
+            }
 
         } catch (IOException e) {
             throw handleException(e, logString);
@@ -239,6 +259,9 @@ public class FTPClient {
             }
         } else {
             Log.error(logString + " failed with reply code " + replyCode);
+            if (ftp.getReplyCode() == 421) { //"Connection already closed"
+                isLoggedIn = false;
+            }
             throw new FTPException(logString + " failed with reply code " + replyCode);
         }
     }
