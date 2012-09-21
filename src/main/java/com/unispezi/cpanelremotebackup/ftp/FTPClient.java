@@ -46,7 +46,15 @@ public class FTPClient {
         this.host = host;
         this.password = password;
         this.user = user;
-        ftp = new org.apache.commons.net.ftp.FTPClient();
+
+        // Bring up FTP client and make sure it uses passive mode
+        ftp = new org.apache.commons.net.ftp.FTPClient(){
+            @Override
+            protected void _connectAction_() throws IOException {
+                super._connectAction_();
+                enterLocalPassiveMode();
+            }
+        };
     }
 
     public void connect() throws FTPException {

@@ -184,7 +184,7 @@ public class CPanelRemoteBackup {
             }
             now = new Date();
         }
-        com.unispezi.cpanelremotebackup.tools.Console.println(": " + currentFileSize + " bytes");
+        com.unispezi.cpanelremotebackup.tools.Console.println(" " + currentFileSize + " bytes");
 
         return !now.after(timeoutDate);
     }
@@ -205,7 +205,7 @@ public class CPanelRemoteBackup {
                 }
             }
         }
-        com.unispezi.cpanelremotebackup.tools.Console.println(": " + backupWeStartedName);
+        com.unispezi.cpanelremotebackup.tools.Console.println(" " + backupWeStartedName);
         return backupWeStartedName;
     }
 

@@ -21,7 +21,9 @@ package com.unispezi.cpanelremotebackup.archive;
 
 import com.unispezi.cpanelremotebackup.tools.Log;
 
-import java.io.*;
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.InputStream;
 import java.util.zip.GZIPInputStream;
 
 /**
@@ -39,17 +41,17 @@ public class Archiver {
         String logString = "ERROR: Verifying \"" + backup + "\" failed";
 
         InputStream unzipped = unzipFile(backup);
-        try {
+        if (unzipped != null){
             try {
-                while (-1 != unzipped.read(buffer)) { }
-            } finally {
-                unzipped.close();
+                try {
+                    while (-1 != unzipped.read(buffer)) { }
+                } finally {
+                    unzipped.close();
+                }
+                return true;
+            } catch (Exception e) {
+                handleException(logString, e);
             }
-            return true;
-        } catch (FileNotFoundException e) {
-            handleException(logString, e);
-        } catch (IOException e) {
-            handleException(logString, e);
         }
         return false;
     }
@@ -61,9 +63,7 @@ public class Archiver {
         try {
             FileInputStream fin = new FileInputStream(backup);
             gzIn = new GZIPInputStream(fin);
-        } catch (FileNotFoundException e) {
-            handleException(logString, e);
-        } catch (IOException e) {
+        } catch (Exception e) {
             handleException(logString, e);
         }
         return gzIn;
