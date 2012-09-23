@@ -23,6 +23,8 @@ import com.unispezi.cpanelremotebackup.tools.Log;
 import org.apache.commons.net.ftp.FTP;
 import org.apache.commons.net.ftp.FTPFile;
 import org.apache.commons.net.ftp.FTPReply;
+import org.apache.commons.net.io.CopyStreamEvent;
+import org.apache.commons.net.io.CopyStreamListener;
 
 import java.io.IOException;
 import java.io.OutputStream;
@@ -182,7 +184,14 @@ public class FTPClient {
         }
     }
 
-    public void downloadFile(String filePath, OutputStream stream) {
+    /**
+     * Will download the given file
+     * @param filePath          path on server
+     * @param stream            stream to write file data to
+     * @param progressListener  optional progress listener
+     * @param totalFileBytes    total file size in bytes, option if no progressListener is given
+     */
+    public void downloadFile(String filePath, OutputStream stream, final ProgressListener progressListener, final long totalFileBytes) {
 
         String logString = "Downloading \"" + filePath+ "\"";
 
@@ -203,6 +212,26 @@ public class FTPClient {
             //Logout
             Log.debug(logString);
 
+            if (progressListener != null){
+                ftp.setCopyStreamListener(new CopyStreamListener(){
+
+                    int lastPercentage = 0;
+
+                    @Override
+                    public void bytesTransferred(CopyStreamEvent event) {
+                        bytesTransferred(event.getTotalBytesTransferred(), event.getBytesTransferred(), event.getStreamSize());
+                    }
+
+                    @Override
+                    public void bytesTransferred(long totalBytesTransferred, int bytesTransferred, long streamSize) {
+                        int currentPercentage = (int) (totalBytesTransferred * 100 / totalFileBytes);
+                        if (currentPercentage > lastPercentage ) {
+                            lastPercentage = currentPercentage;
+                            progressListener.progressPercentageReached(currentPercentage);
+                        }
+                    }
+                });
+            }
             ftp.retrieveFile(filePath, stream);
             Log.debug("Reply string was:" + ftp.getReplyString());
 
@@ -291,5 +320,9 @@ public class FTPClient {
             }
             throw new FTPException(logString + " failed with reply code " + replyCode);
         }
+    }
+
+    public static interface ProgressListener {
+        public void progressPercentageReached(int percentage);
     }
 }

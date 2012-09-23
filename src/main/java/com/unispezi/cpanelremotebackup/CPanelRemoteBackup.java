@@ -63,6 +63,10 @@ public class CPanelRemoteBackup {
     }
 
 
+    /**
+     * main
+     * @param args arguments
+     */
     public static void main(String[] args) {
 
         //TODO implement command line options
@@ -77,14 +81,17 @@ public class CPanelRemoteBackup {
     }
 
 
+    /**
+     * Main method implementation
+     */
     private void main() {
 
         // Init
         initFtp();
-        initHttp();
+        initHttpClient();
 
         // Read existing backups on server (if any) so we can recognize the new one
-        String prevBackupName = findYoungestBackup(ftp, BACKUP_FILENAME_PATTERN);
+        String prevBackupName = findYoungestBackup(BACKUP_FILENAME_PATTERN);
         String prevBackupNameLogStr = prevBackupName != null ? prevBackupName : "none";
         Log.debug("Youngest backup in home directory before we started: " + prevBackupNameLogStr);
 
@@ -103,13 +110,15 @@ public class CPanelRemoteBackup {
         }
 
         // Wait till CPanel is done writing to it
-        boolean isStable = waitForBackupSizeToBecomeStable(timeoutDate, backupName);
-        if (!isStable) {
+        long bytes = 0;
+        try {
+            bytes = waitForBackupSizeToBecomeStable(timeoutDate, backupName);
+        } catch (ReadTimeoutException e) {
             com.unispezi.cpanelremotebackup.tools.Console.println("ERROR: Backup file size did not become stable in time");
             System.exit(1);
         }
 
-        File downloaded = downloadBackupToFile(backupName, outputDirectory);
+        File downloaded = downloadBackupToFile(backupName, outputDirectory, bytes);
         com.unispezi.cpanelremotebackup.tools.Console.print("Verifying downloaded file ...");
         Archiver archiver = new Archiver(VERIFY_BUFFER_SIZE_BYTES);
         if (archiver.verifyDownloadedBackup(downloaded)) {
@@ -128,7 +137,14 @@ public class CPanelRemoteBackup {
 
     }
 
-    private File downloadBackupToFile(String backupName, String outputDirectory) {
+    /**
+     * Downloads the backup to local file
+     * @param backupName      name of backup on server
+     * @param outputDirectory target local directory
+     * @param totalFileBytes  file size (for progress indicator)
+     * @return file handle of downloaded file
+     */
+    private File downloadBackupToFile(String backupName, String outputDirectory, long totalFileBytes) {
         final PipedInputStream ftpDataInStream = new PipedInputStream();
         File outFile = null;
         try {
@@ -155,10 +171,25 @@ public class CPanelRemoteBackup {
                 com.unispezi.cpanelremotebackup.tools.Console.println("ERROR: Cannot create \"" + outFile + "\", file already exists.");
             }
 
-            com.unispezi.cpanelremotebackup.tools.Console.println("Downloading " + backupName + " to " + outFile.getPath());
-            ftp.downloadFile(backupName, ftpDataOutStream);
+            com.unispezi.cpanelremotebackup.tools.Console.println("Downloading " + backupName + " to " + outFile.getPath() + " :");
+            com.unispezi.cpanelremotebackup.tools.Console.print("0% ");
+
+            FTPClient.ProgressListener listener = new FTPClient.ProgressListener() {
+                int lastPrintedPercentage = 0;
+
+                @Override
+                public void progressPercentageReached(int percentage) {
+                    int percentageRounded = percentage / 10;
+                    if ( percentageRounded > lastPrintedPercentage){
+                        lastPrintedPercentage = percentageRounded;
+                        com.unispezi.cpanelremotebackup.tools.Console.print(percentageRounded * 10 + "% ");
+                    }
+                }
+            };
+
+            ftp.downloadFile(backupName, ftpDataOutStream, listener, totalFileBytes);
             synchronized (asyncThreadMonitor) {
-                com.unispezi.cpanelremotebackup.tools.Console.println("Downloaded " + bytesDownloaded + " bytes successfully");
+                com.unispezi.cpanelremotebackup.tools.Console.println("\nDownloaded " + bytesDownloaded + " bytes successfully");
             }
         } catch (IOException e) {
             com.unispezi.cpanelremotebackup.tools.Console.println("ERROR: Cannot download backup: " + e);
@@ -167,7 +198,15 @@ public class CPanelRemoteBackup {
     }
 
 
-    private boolean waitForBackupSizeToBecomeStable(Date timeoutDate, String backupName) {
+    /**
+     * Polls until size of server file does not change anymore
+     *
+     * @param timeoutDate max timestamp until this operation may run
+     * @param backupName  backup name on server
+     * @return file size in bytes
+     * @throws ReadTimeoutException if operation took longer than timeout
+     */
+    private long waitForBackupSizeToBecomeStable(Date timeoutDate, String backupName) throws ReadTimeoutException {
         com.unispezi.cpanelremotebackup.tools.Console.print("Polling for backup file size to become stable");
         long lastFileSize = 0;
         long currentFileSize = 0;
@@ -186,15 +225,25 @@ public class CPanelRemoteBackup {
         }
         com.unispezi.cpanelremotebackup.tools.Console.println(" " + currentFileSize + " bytes");
 
-        return !now.after(timeoutDate);
+        if (now.after(timeoutDate)){
+            throw new ReadTimeoutException("Download of file exceeded timeout");
+        }
+        return currentFileSize;
     }
 
+    /**
+     * Find the file which holds the backup we just started
+     *
+     * @param prevBackupName name of previous backup on server or null if this is the first
+     * @param timeoutDate max timestamp until this operation may run
+     * @return name of started backup
+     */
     private String findBackupWeStarted(String prevBackupName, Date timeoutDate) {
         String backupWeStartedName = null;
         com.unispezi.cpanelremotebackup.tools.Console.print("Polling for backup we just started");
         while ((backupWeStartedName == null) && (new Date().before(timeoutDate))) {
             com.unispezi.cpanelremotebackup.tools.Console.print(".");
-            String youngestBackupName = findYoungestBackup(ftp, BACKUP_FILENAME_PATTERN);
+            String youngestBackupName = findYoungestBackup(BACKUP_FILENAME_PATTERN);
             if ((youngestBackupName != null) && ((prevBackupName == null) || (!youngestBackupName.equals(prevBackupName)))) {
                 backupWeStartedName = youngestBackupName;
             } else {
@@ -209,6 +258,9 @@ public class CPanelRemoteBackup {
         return backupWeStartedName;
     }
 
+    /**
+     * Starts the CPanel backup on the server
+     */
     private void triggerBackup() {
         Map<String, Object> params = new HashMap<String, Object>();
         params.put("dest", "homedir"); //Put into home directory
@@ -223,7 +275,10 @@ public class CPanelRemoteBackup {
         http.post(uri, params);
     }
 
-    private void initHttp() {
+    /**
+     * Inits the HTTP client
+     */
+    private void initHttpClient() {
         int port;
         if (isSecure) {
             port = 2083;
@@ -234,7 +289,13 @@ public class CPanelRemoteBackup {
         http = new HTTPClient(hostName, port, isSecure, user, password);
     }
 
-    private String findYoungestBackup(FTPClient ftp, Pattern fileNamePattern) {
+    /**
+     * Looks for the youngest backup which is on the server
+     *
+     * @param fileNamePattern pattern to recognize backups
+     * @return file name of youngest backup file
+     */
+    private String findYoungestBackup(Pattern fileNamePattern) {
         List<FTPFile> files = ftp.listFilesInDirectory("/");
         FTPFile youngest = null;
 
@@ -253,11 +314,25 @@ public class CPanelRemoteBackup {
     }
 
 
-
-
+    /**
+     * Inits the HTTP client
+     */
     public void initFtp() {
         ftp = new FTPClient(hostName, user, password);
         ftp.connect();
         ftp.login();
+    }
+
+    /**
+     * Exception which is thrown if an operation took too long
+     */
+    private class ReadTimeoutException extends Exception {
+        /**
+         * Constructor
+         * @param msg exception message
+         */
+        public ReadTimeoutException(String msg) {
+            super(msg);
+        }
     }
 }
