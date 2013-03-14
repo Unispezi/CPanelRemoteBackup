@@ -74,7 +74,7 @@ public class CPanelRemoteBackup {
         String password = System.getProperty("password");
         String hostName = System.getProperty("hostname");
         String outputDirectory = System.getProperty("outdir");
-        boolean secure = true;
+        boolean secure = "true".equalsIgnoreCase(System.getProperty("secure"));
 
         CPanelRemoteBackup backup = new CPanelRemoteBackup(user, password, hostName, secure, outputDirectory);
         backup.main();
