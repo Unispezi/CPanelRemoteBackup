@@ -31,18 +31,18 @@ Will log on to the given homepage, trigger a backup, and put it in c:\backups .
 
 Output will look something like this:
 
-Starting CPanel backup 
-Polling for backup we just started..: backup-5.6.2012_09-01-42_mysite.tar.gz 
-Polling for backup file size to become stable....: 352024131 bytes 
-Downloading backup-5.6.2012_09-01-42_mysite.tar.gz to c:\backups\backup-5.6.2012_09-01-42_mysite.tar.gz 
-Downloaded 352024131 bytes successfully 
-Verifying downloaded file ...OK
-Deleting backup-5.6.2012_15-00-25_kadampak.tar.gz on server
-Done.
+Starting CPanel backup  
+Polling for backup we just started..: backup-5.6.2012_09-01-42_mysite.tar.gz  
+Polling for backup file size to become stable....: 352024131 bytes  
+Downloading backup-5.6.2012_09-01-42_mysite.tar.gz to c:\backups\backup-5.6.2012_09-01-42_mysite.tar.gz  
+Downloaded 352024131 bytes successfully  
+Verifying downloaded file ...OK  
+Deleting backup-5.6.2012_15-00-25_kadampak.tar.gz on server  
+Done.  
 
 # Further help
-Run 
-java -jar CPanelRemoteBackup-1.0.jar -help
+Run  
+java -jar CPanelRemoteBackup-1.0.jar -help  
 for a list of options
 
 # How to build
