@@ -9,6 +9,12 @@
     <artifactId>CPanelRemoteBackup</artifactId>
     <version>1.0</version>
 
+    <repositories>
+        <repository>
+            <id>jenkinsReleases</id>
+            <url>http://repo.jenkins-ci.org/simple/releases/</url>
+        </repository>
+    </repositories>
 
     <build>
         <plugins>
@@ -74,7 +80,11 @@
             <version>4.10</version>
             <scope>compile</scope>
         </dependency>
-
+        <dependency>
+            <groupId>args4j</groupId>
+            <artifactId>args4j</artifactId>
+            <version>2.0.21</version>
+        </dependency>
     </dependencies>
 
 

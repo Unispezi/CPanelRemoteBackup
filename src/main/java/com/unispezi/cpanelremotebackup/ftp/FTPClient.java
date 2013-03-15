@@ -44,7 +44,14 @@ public class FTPClient {
     private String user;
     private boolean isLoggedIn;
 
-    public FTPClient(String host, String user, String password) {
+    /**
+     * Constructor
+     * @param host          FTP host to connect to
+     * @param user          username for login
+     * @param password      password for login
+     * @param controlPort   control port or NULL for default (21)
+     */
+    public FTPClient(String host, String user, String password, Integer controlPort) {
         this.host = host;
         this.password = password;
         this.user = user;
@@ -57,8 +64,16 @@ public class FTPClient {
                 enterLocalPassiveMode();
             }
         };
+        if (controlPort != null){
+            ftp.setDefaultPort(controlPort);
+        }
     }
 
+    /**
+     * Start FTP connection. Does nothing if already connected
+     *
+     * @throws FTPException if something went wrong
+     */
     public void connect() throws FTPException {
         if (!ftp.isConnected()) {
             String logString = "Connecting to  " + getHostLogString();
@@ -87,6 +102,10 @@ public class FTPClient {
         }
     }
 
+    /**
+     * Login. Will connect if not already connected
+     * @throws FTPException if something went wrong
+     */
     public void login() throws FTPException {
         if (! isLoggedIn){
             if (!ftp.isConnected()) {
@@ -112,12 +131,18 @@ public class FTPClient {
             Log.info("Ignoring logon call, already logged on to " + getHostLogString());
         }
     }
-    
+
+    /** Return host identifier for logging
+     *  @return host string
+     */
     private String getHostLogString(){
         return "\"" + host + "\"";
     }
 
 
+    /**
+     * Logs out. Does nothing if not logged in.
+     */
     public void logout() {
         if (isLoggedIn) {
             if (ftp.isConnected()) {
@@ -142,6 +167,12 @@ public class FTPClient {
         }
     }
 
+    /**
+     * Lists files in directory
+     *
+     * @param directory directory path to list
+     * @return list of file descriptions
+     */
     public List<FTPFile> listFilesInDirectory(String directory) {
 
         String logString = "Listing directory \"" + directory + "\"";
@@ -163,6 +194,12 @@ public class FTPClient {
         }
     }
 
+    /**
+     * Returns information about a file
+     *
+     * @param filePath absolute path to file
+     * @return file info
+     */
     public FTPFile getFileDetails(String filePath) {
 
         String logString = "Mlisting file \"" + filePath + "\"";
@@ -286,9 +323,12 @@ public class FTPClient {
         }
     }
 
-
-
-
+    /**
+     * Makes sure we are logged in, logs error and throws exception otherwise
+     *
+     * @param logString prefix to log
+     * @throws FTPException if not logged in / not connected
+     */
     private void assertLoggedIn(String logString) {
         if (!isLoggedIn || !ftp.isConnected()) {
             Log.error(logString + " failed because we are not logged in.");
@@ -296,18 +336,38 @@ public class FTPClient {
         }
     }
 
+    /**
+     * Default exception handler: Logs and wraps exception in FTPException
+     *
+     * @param e exception
+     * @param logString  Prefix to log
+     * @return FTPException
+     */
     private RuntimeException handleException(IOException e, String logString) {
         Log.error(logString + " failed because of " + e);
         throw new FTPException(logString + " failed", e);
     }
 
+    /**
+     * Checks result code of FTP command, logs and throws exception on failure
+     *
+     * @param replyCode  expected reply code
+     * @param logString  log prefix to log
+     */
     private void checkResult(int replyCode, String logString) {
         checkResult(replyCode, logString, true);
     }
 
-    private void checkResult(int replyCode, String logString, boolean customSuccessful) {
+    /**
+     * Checks result code of FTP command, logs and throws exception on failure
+     *
+     * @param replyCode  expected reply code
+     * @param logString  log prefix to log
+     * @param knownSuccesState if false, will treat action as failed even if result code showed success
+     */
+    private void checkResult(int replyCode, String logString, boolean knownSuccesState) {
         if (FTPReply.isPositiveCompletion(replyCode)) {
-            if (customSuccessful) {
+            if (knownSuccesState) {
                 Log.info(logString + " successful");
             } else {
                 Log.error(logString + " failed");
@@ -322,7 +382,17 @@ public class FTPClient {
         }
     }
 
+    /**
+     * Interface for listener which is interested in progress of a long-running
+     * action
+     */
     public static interface ProgressListener {
+        /**
+         * Will be called whenever the long running action has reached
+         * a certain percentage of completion
+         *
+         * @param percentage number between 0 and 100
+         */
         public void progressPercentageReached(int percentage);
     }
 }

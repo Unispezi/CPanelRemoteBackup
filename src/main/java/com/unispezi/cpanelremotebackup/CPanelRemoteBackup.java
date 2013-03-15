@@ -25,12 +25,13 @@ import com.unispezi.cpanelremotebackup.http.HTTPClient;
 import com.unispezi.cpanelremotebackup.tools.Log;
 import org.apache.commons.io.IOUtils;
 import org.apache.commons.net.ftp.FTPFile;
+import org.kohsuke.args4j.Argument;
+import org.kohsuke.args4j.CmdLineException;
+import org.kohsuke.args4j.CmdLineParser;
+import org.kohsuke.args4j.Option;
 
 import java.io.*;
-import java.util.Date;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.regex.Pattern;
 
 /**
@@ -41,26 +42,46 @@ public class CPanelRemoteBackup {
     private static volatile long bytesDownloaded;
     private static final Object asyncThreadMonitor = new Object();
 
-    private String user;
-    private String password;
-    private String hostName;
-    private boolean isSecure;
+    @Argument(index=0, metaVar = "hostname", usage="CPanel and FTP host to connect to", required = true)
+    private String hostName = null;
+
+    @Argument(index=1, metaVar = "outdir", usage="Directory to store backup to. Default: current directory")
+    private String outputDirectory = null;
+
+    @Option(name="-user", metaVar = "username", usage="Username for CPanel and FTP login", required = true)
+    private String user = null;
+
+    @Option(name="-password",usage="Password for CPanel and FTP login", required =  true)
+    private String password = null;
+
+    @Option(name="-https", usage="Connect to CPanel using HTTPs. Default: HTTP")
+    private boolean isHttps = false;
+
+    @Option(name="-backuptimeout", usage="Time (seconds) to wait for backup to complete on server. Default: 300")
+    long backupTimeoutSecs = 300;
+
+    @Option(name="-pollinterval", usage="Time (seconds) to wait between checks if backup is complete. Default: 15")
+    long pollIntervalSeconds = 15;
+
+    @Option(name="-cpanelskin", metaVar = "skin", usage="Expert: CPanel skin set for your CPanel instance. Default: \"x3\"")
+    String skin = "x3";
+
+    @Option(name="-cpanelport", usage="CPanel port to use. Default: 2082 for HTTP / 2093 for HTTPs")
+    private Integer cpanelPort = null;
+
+    @Option(name="-ftpport", usage="FTP control port to use. Default: 21")
+    private Integer ftpControlPort = null;
+
+    @Option(name="-noverify", usage="Skip verification of downloaded backup. Default: verify on")
+    private boolean isDontVerify = false;
+
+    @Option(name="-nodelete", usage="Skip deletion of backup on remote server. Default: delete on")
+    private boolean isDontDelete = false;
+
     private FTPClient ftp;
     private HTTPClient http;
-    long timeoutSeconds = 300;
-    long pollIntervalSeconds = 15;
     long minFileBytes = 5000;
-    String skin = "x3";
-    private String outputDirectory;
     private static final int VERIFY_BUFFER_SIZE_BYTES = 100000;
-
-    public CPanelRemoteBackup(String user, String password, String hostName, boolean isSecure, String outputDirectory) {
-        this.user = user;
-        this.password = password;
-        this.hostName = hostName;
-        this.isSecure = isSecure;
-        this.outputDirectory = outputDirectory;
-    }
 
 
     /**
@@ -69,22 +90,27 @@ public class CPanelRemoteBackup {
      */
     public static void main(String[] args) {
 
-        //TODO implement command line options
-        String user = System.getProperty("username");
-        String password = System.getProperty("password");
-        String hostName = System.getProperty("hostname");
-        String outputDirectory = System.getProperty("outdir");
-        boolean secure = "true".equalsIgnoreCase(System.getProperty("secure"));
+        Locale.setDefault(Locale.ENGLISH); // We don't support I18n yet, but args4j does. Set args4j to English.
+        CPanelRemoteBackup backup = new CPanelRemoteBackup();
 
-        CPanelRemoteBackup backup = new CPanelRemoteBackup(user, password, hostName, secure, outputDirectory);
-        backup.main();
+        CmdLineParser parser = new CmdLineParser(backup);
+        try {
+            parser.parseArgument(args);
+            backup.run();
+        } catch (CmdLineException e) {
+            // handling of wrong arguments
+            System.err.println("CPanelRemoteBackup - Triggers full backup on remote CPanel server, then downloads it");
+            System.err.println(e.getMessage());
+            System.err.println("Usage: java -jar CPanelRemoteBackup.jar hostname [outdir]");
+            parser.printUsage(System.err);
+        }
     }
 
 
     /**
-     * Main method implementation
+     * Start the backup
      */
-    private void main() {
+    private void run() {
 
         // Init
         initFtp();
@@ -100,7 +126,7 @@ public class CPanelRemoteBackup {
         triggerBackup();
 
         // Polling steps (find backup, wait for backup to reach final size) start next. Start the timeout clock
-        Date timeoutDate = new Date(new Date().getTime() + timeoutSeconds * 1000);
+        Date timeoutDate = new Date(new Date().getTime() + backupTimeoutSecs * 1000);
 
         // Find backup we just started
         String backupName = findBackupWeStarted(prevBackupName, timeoutDate);
@@ -119,18 +145,23 @@ public class CPanelRemoteBackup {
         }
 
         File downloaded = downloadBackupToFile(backupName, outputDirectory, bytes);
-        com.unispezi.cpanelremotebackup.tools.Console.print("Verifying downloaded file ...");
-        Archiver archiver = new Archiver(VERIFY_BUFFER_SIZE_BYTES);
-        if (archiver.verifyDownloadedBackup(downloaded)) {
-            com.unispezi.cpanelremotebackup.tools.Console.println("OK");
-        } else {
-            com.unispezi.cpanelremotebackup.tools.Console.println("ERROR");
-            com.unispezi.cpanelremotebackup.tools.Console.println("ERROR: Could not verify downloaded file");
-            System.exit(1);
+
+        if (!isDontVerify){
+            com.unispezi.cpanelremotebackup.tools.Console.print("Verifying downloaded file... ");
+            Archiver archiver = new Archiver(VERIFY_BUFFER_SIZE_BYTES);
+            if (archiver.verifyDownloadedBackup(downloaded)) {
+                com.unispezi.cpanelremotebackup.tools.Console.println("OK");
+            } else {
+                com.unispezi.cpanelremotebackup.tools.Console.println("ERROR");
+                com.unispezi.cpanelremotebackup.tools.Console.println("ERROR: Could not verify downloaded file");
+                System.exit(1);
+            }
         }
 
-        com.unispezi.cpanelremotebackup.tools.Console.println("Deleting " + backupName + " on server");
-        ftp.deleteFile(backupName);
+        if (!isDontDelete){
+            com.unispezi.cpanelremotebackup.tools.Console.println("Deleting " + backupName + " on server");
+            ftp.deleteFile(backupName);
+        }
 
         com.unispezi.cpanelremotebackup.tools.Console.println("Done.");
         ftp.logout();
@@ -266,7 +297,7 @@ public class CPanelRemoteBackup {
         params.put("dest", "homedir"); //Put into home directory
         params.put("email_radio", 0); //No email
         params.put("server", ""); //Needed for dest = remote ftp directory only
-        params.put("port", "");   //Needed for dest = remote ftp directory only
+        params.put("cpanelPort", "");   //Needed for dest = remote ftp directory only
         params.put("rdir", "");   //Needed for dest = remote ftp directory only
         params.put("user", user);
         params.put("pass", password);
@@ -279,14 +310,15 @@ public class CPanelRemoteBackup {
      * Inits the HTTP client
      */
     private void initHttpClient() {
-        int port;
-        if (isSecure) {
-            port = 2083;
-        } else {
-            port = 2082;
+        if (cpanelPort == null){
+            if (isHttps) {
+                cpanelPort = 2083;
+            } else {
+                cpanelPort = 2082;
+            }
         }
 
-        http = new HTTPClient(hostName, port, isSecure, user, password);
+        http = new HTTPClient(hostName, cpanelPort, isHttps, user, password);
     }
 
     /**
@@ -318,7 +350,7 @@ public class CPanelRemoteBackup {
      * Inits the HTTP client
      */
     public void initFtp() {
-        ftp = new FTPClient(hostName, user, password);
+        ftp = new FTPClient(hostName, user, password, ftpControlPort);
         ftp.connect();
         ftp.login();
     }

@@ -25,7 +25,7 @@ For this to work, you need
 
 # Usage
 Example:  
-java -Dusername=someusername -Dpassword=somepassword -Dhostname=mysite.mydomain.com -Doutdir=c:/backups -jar CPanelRemoteBackup-1.0.jar 
+java -jar CPanelRemoteBackup-1.0.jar -user someusername -password somepassword mysite.mydomain.com c:/backups 
 
 Will log on to the given homepage, trigger a backup, and put it in c:\backups .
 
@@ -39,6 +39,11 @@ Downloaded 352024131 bytes successfully
 Verifying downloaded file ...OK
 Deleting backup-5.6.2012_15-00-25_kadampak.tar.gz on server
 Done.
+
+# Further help
+Run 
+java -jar CPanelRemoteBackup-1.0.jar -help
+for a list of options
 
 # How to build
 ## You'll need 
