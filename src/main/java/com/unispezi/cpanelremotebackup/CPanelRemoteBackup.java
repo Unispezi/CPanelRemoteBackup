@@ -63,8 +63,8 @@ public class CPanelRemoteBackup {
     @Option(name="-pollinterval", usage="Time (seconds) to wait between checks if backup is complete. Default: 15")
     long pollIntervalSeconds = 15;
 
-    @Option(name="-cpanelskin", metaVar = "skin", usage="Expert: CPanel skin set for your CPanel instance. Default: \"x3\"")
-    String skin = "x3";
+    @Option(name="-cpanelskin", metaVar = "skin", usage="Expert: CPanel skin set for your CPanel instance. Default: \"paper_lantern\"")
+    String skin = "paper_lantern";
 
     @Option(name="-cpanelport", usage="CPanel port to use. Default: 2082 for HTTP / 2093 for HTTPs")
     private Integer cpanelPort = null;
